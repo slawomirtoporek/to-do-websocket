@@ -1,4 +1,50 @@
+import io from 'socket.io-client';
+import { useState, useEffect } from 'react';
+import shortid from 'shortid';
+
 const  App = () => {
+
+  const [socket, setSocket] = useState();
+  const [tasks, setTasks] = useState([]);
+  const [taskName, setTaskName] = useState('');
+
+
+    useEffect(() => {
+      const socket = io('ws://localhost:8000', { transports: ['websocket'] });
+      setSocket(socket);
+
+      socket.on('addTask', task => addTask(task));
+      socket.on('removeTask', ({idTask, idSocket}) => removeTask(idTask, idSocket));
+      socket.on('updateData', data => updateTasks(data));
+
+      return () => {
+        socket.disconnect();
+      };
+    }, []);
+
+    const updateTasks = data =>{
+      setTasks(tasks => [...tasks, ...data]);
+    };
+
+    const removeTask = (idTask, idSocket) => {
+      setTasks(tasks => tasks.filter(task => task.id !== idTask));
+      if (!idSocket) {
+        socket.emit('removeTask', idTask);
+      };
+    };
+
+    const addTask = task => {
+      setTasks(tasks => [...tasks, task]);
+    };
+
+    const submitForm = e => {
+      e.preventDefault();
+      const task = { id: shortid.generate(), name: taskName };
+      addTask(task);
+      socket.emit('addTask', task);
+      setTaskName('');
+    };
+
   return (
     <div className="App">
 
@@ -10,12 +56,25 @@ const  App = () => {
         <h2>Tasks</h2>
 
         <ul className="tasks-section__list" id="tasks-list">
-          <li className="task">Shopping <button className="btn btn--red">Remove</button></li>
-          <li className="task">Go out with a dog <button className="btn btn--red">Remove</button></li>
+          {tasks.map((task) => (
+            <li key={task.id} className="task">{task.name}
+              <button className="btn btn--red" 
+                onClick={() => removeTask(task.id)}
+              >Remove
+              </button>
+            </li>
+          ))}
         </ul>
 
-        <form id="add-task-form">
-          <input className="text-input" autoComplete="off" type="text" placeholder="Type your description" id="task-name" />
+        <form id="add-task-form" onSubmit={(e) => submitForm(e)}>
+          <input 
+            className="text-input" 
+            autoComplete="off" 
+            type="text" 
+            placeholder="Type your description" 
+            id="task-name" value={taskName} 
+            onChange={(e) => setTaskName(e.target.value)}
+          />
           <button className="btn" type="submit">Add</button>
         </form>
 
